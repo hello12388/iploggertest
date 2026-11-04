@@ -1,31 +1,31 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 /**
- * Temporary in-memory store. Resets when the server restarts —
- * acceptable for this throwaway test project.
+ * Public receive endpoint for Roblox scripts.
  *
- * One record per unique IP: keyed by IP, never overwritten.
- * Handlers run synchronously here, so a duplicate arriving in the same
- * instant still hits the same Map key and cannot create a second record.
+ * The source IP is taken from trusted edge metadata (CF-Connecting-IP, set by
+ * the Cloudflare edge and stripped from client requests). An IP supplied in
+ * the request body is never trusted. Duplicates are rejected by the database
+ * itself: `ip` is the primary key and inserts use ON CONFLICT DO NOTHING, so
+ * simultaneous requests cannot create two records for one IP.
  */
-const store = new Map<string, IpRecord>();
 
-interface IpRecord {
-  ip: string;
-  version: "IPv4" | "IPv6" | "unknown";
-  firstSeen: string;
-}
+const CORS_HEADERS: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
 
 const IPV4_RE =
   /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
 
-function detectVersion(ip: string): IpRecord["version"] {
+function detectVersion(ip: string): "IPv4" | "IPv6" | "unknown" {
   if (IPV4_RE.test(ip)) return "IPv4";
   if (ip.includes(":")) return "IPv6";
   return "unknown";
 }
 
-/** Best-effort connecting-IP detection behind the edge proxy. */
+/** Trusted connecting-IP detection: edge metadata first, proxy chain fallback. */
 function clientIpFromRequest(request: Request): string | undefined {
   const cf = request.headers.get("cf-connecting-ip");
   if (cf) return cf.trim();
@@ -34,63 +34,42 @@ function clientIpFromRequest(request: Request): string | undefined {
   return undefined;
 }
 
-const CORS_HEADERS: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-};
-
 export const Route = createFileRoute("/api/public/ip")({
   server: {
     handlers: {
       OPTIONS: async () => new Response(null, { status: 204, headers: CORS_HEADERS }),
 
-      // Dashboard polls this: all unique IP records, newest first.
-      GET: async () => {
-        const records = [...store.values()].sort(
-          (a, b) => new Date(b.firstSeen).getTime() - new Date(a.firstSeen).getTime(),
-        );
-        return Response.json(
-          { records, total: records.length },
-          { headers: { ...CORS_HEADERS, "Cache-Control": "no-store" } },
-        );
-      },
-
-      // Roblox script calls this. The connecting IP is read from proxy
-      // headers; a body { "ip": "..." } can override it for local testing.
       POST: async ({ request }) => {
-        let bodyIp: unknown;
-        try {
-          const body = (await request.json()) as { ip?: unknown };
-          if (typeof body?.ip === "string") bodyIp = body.ip;
-        } catch {
-          // Empty or non-JSON body is fine — headers are the primary source.
-        }
-
-        const ip =
-          (typeof bodyIp === "string" && bodyIp.length <= 45 ? bodyIp : undefined) ??
-          clientIpFromRequest(request);
-
+        const ip = clientIpFromRequest(request);
         if (!ip) {
           return Response.json(
-            { error: "No IP available" },
+            { error: "No source IP available on the request" },
             { status: 400, headers: CORS_HEADERS },
           );
         }
 
-        // Deduplication happens here on the endpoint: an existing IP keeps
-        // its original record untouched.
-        const duplicate = store.has(ip);
-        if (!duplicate) {
-          store.set(ip, {
-            ip,
-            version: detectVersion(ip),
-            firstSeen: new Date().toISOString(),
-          });
+        const { supabaseAdmin } = await import(
+          "@/integrations/supabase/client.server"
+        );
+
+        // ON CONFLICT DO NOTHING on the primary key: an existing IP keeps its
+        // original record untouched, even under concurrent requests.
+        const { data, error } = await supabaseAdmin
+          .from("ip_records")
+          .insert({ ip, version: detectVersion(ip) })
+          .ignoreDuplicates()
+          .select("ip");
+
+        if (error) {
+          console.error("[ip receive] insert failed:", error.message);
+          return Response.json(
+            { error: "Failed to store IP" },
+            { status: 500, headers: CORS_HEADERS },
+          );
         }
 
         return Response.json(
-          { ok: true, duplicate, total: store.size },
+          { ok: true, duplicate: (data?.length ?? 0) === 0 },
           { headers: CORS_HEADERS },
         );
       },

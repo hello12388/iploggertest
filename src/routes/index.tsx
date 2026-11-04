@@ -41,7 +41,7 @@ function Index() {
 
     const poll = async () => {
       try {
-        const res = await fetch("/api/public/ip");
+        const res = await fetch("/api/ip");
         const data = (await res.json()) as { records: IpRecord[] };
         if (alive) setRecords(data.records);
       } catch {

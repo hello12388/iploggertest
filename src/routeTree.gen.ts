@@ -10,11 +10,17 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiIpRouteImport } from './routes/api/ip'
 import { Route as ApiPublicIpRouteImport } from './routes/api/public/ip'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiIpRoute = ApiIpRouteImport.update({
+  id: '/api/ip',
+  path: '/api/ip',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicIpRoute = ApiPublicIpRouteImport.update({
@@ -25,27 +31,31 @@ const ApiPublicIpRoute = ApiPublicIpRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/ip': typeof ApiIpRoute
   '/api/public/ip': typeof ApiPublicIpRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/ip': typeof ApiIpRoute
   '/api/public/ip': typeof ApiPublicIpRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/ip': typeof ApiIpRoute
   '/api/public/ip': typeof ApiPublicIpRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/public/ip'
+  fullPaths: '/' | '/api/ip' | '/api/public/ip'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/public/ip'
-  id: '__root__' | '/' | '/api/public/ip'
+  to: '/' | '/api/ip' | '/api/public/ip'
+  id: '__root__' | '/' | '/api/ip' | '/api/public/ip'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiIpRoute: typeof ApiIpRoute
   ApiPublicIpRoute: typeof ApiPublicIpRoute
 }
 
@@ -56,6 +66,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ip': {
+      id: '/api/ip'
+      path: '/api/ip'
+      fullPath: '/api/ip'
+      preLoaderRoute: typeof ApiIpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/ip': {
@@ -70,6 +87,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiIpRoute: ApiIpRoute,
   ApiPublicIpRoute: ApiPublicIpRoute,
 }
 export const routeTree = rootRouteImport
