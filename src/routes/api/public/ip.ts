@@ -3,14 +3,17 @@ import { createFileRoute } from "@tanstack/react-router";
 /**
  * Temporary in-memory store. Resets when the server restarts —
  * acceptable for this throwaway test project.
+ *
+ * One record per unique IP: keyed by IP, never overwritten.
+ * Handlers run synchronously here, so a duplicate arriving in the same
+ * instant still hits the same Map key and cannot create a second record.
  */
-const store: { record: IpRecord | null } = { record: null };
+const store = new Map<string, IpRecord>();
 
 interface IpRecord {
   ip: string;
   version: "IPv4" | "IPv6" | "unknown";
-  receivedAt: string;
-  count: number;
+  firstSeen: string;
 }
 
 const IPV4_RE =
@@ -42,12 +45,16 @@ export const Route = createFileRoute("/api/public/ip")({
     handlers: {
       OPTIONS: async () => new Response(null, { status: 204, headers: CORS_HEADERS }),
 
-      // Dashboard polls this: latest IP + request count.
-      GET: async () =>
-        Response.json(
-          { record: store.record },
+      // Dashboard polls this: all unique IP records, newest first.
+      GET: async () => {
+        const records = [...store.values()].sort(
+          (a, b) => new Date(b.firstSeen).getTime() - new Date(a.firstSeen).getTime(),
+        );
+        return Response.json(
+          { records, total: records.length },
           { headers: { ...CORS_HEADERS, "Cache-Control": "no-store" } },
-        ),
+        );
+      },
 
       // Roblox script calls this. The connecting IP is read from proxy
       // headers; a body { "ip": "..." } can override it for local testing.
@@ -71,15 +78,21 @@ export const Route = createFileRoute("/api/public/ip")({
           );
         }
 
-        const prev = store.record;
-        store.record = {
-          ip,
-          version: detectVersion(ip),
-          receivedAt: new Date().toISOString(),
-          count: (prev?.count ?? 0) + 1,
-        };
+        // Deduplication happens here on the endpoint: an existing IP keeps
+        // its original record untouched.
+        const duplicate = store.has(ip);
+        if (!duplicate) {
+          store.set(ip, {
+            ip,
+            version: detectVersion(ip),
+            firstSeen: new Date().toISOString(),
+          });
+        }
 
-        return Response.json({ ok: true, ...store.record }, { headers: CORS_HEADERS });
+        return Response.json(
+          { ok: true, duplicate, total: store.size },
+          { headers: CORS_HEADERS },
+        );
       },
     },
   },
