@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Activity, ArrowDownToLine, Globe } from "lucide-react";
+import { Activity, ArrowDownToLine, Globe, Users } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -9,12 +9,13 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Receive and display IP addresses sent from a Roblox script in real time.",
+          "Receive and display unique IP addresses sent from a Roblox script in real time.",
       },
       { property: "og:title", content: "IP Receiver Dashboard" },
       {
         property: "og:description",
-        content: "Receive and display IP addresses sent from a Roblox script in real time.",
+        content:
+          "Receive and display unique IP addresses sent from a Roblox script in real time.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -26,14 +27,13 @@ export const Route = createFileRoute("/")({
 interface IpRecord {
   ip: string;
   version: "IPv4" | "IPv6" | "unknown";
-  receivedAt: string;
-  count: number;
+  firstSeen: string;
 }
 
 const FRESH_MS = 60_000;
 
 function Index() {
-  const [record, setRecord] = useState<IpRecord | null>(null);
+  const [records, setRecords] = useState<IpRecord[]>([]);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -42,8 +42,8 @@ function Index() {
     const poll = async () => {
       try {
         const res = await fetch("/api/public/ip");
-        const data = (await res.json()) as { record: IpRecord | null };
-        if (alive) setRecord(data.record);
+        const data = (await res.json()) as { records: IpRecord[] };
+        if (alive) setRecords(data.records);
       } catch {
         // Network hiccup — keep previous state, retry on next tick.
       }
@@ -58,7 +58,10 @@ function Index() {
     };
   }, []);
 
-  const connected = record !== null && now - new Date(record.receivedAt).getTime() < FRESH_MS;
+  const latest = records[0];
+  const connected =
+    latest !== undefined &&
+    now - new Date(latest.firstSeen).getTime() < FRESH_MS;
   const status = connected ? "Connected" : "Waiting for data";
 
   return (
@@ -83,12 +86,10 @@ function Index() {
                 : "border-border bg-card text-muted-foreground"
             }`}
           >
-            <span
-              className={`relative flex size-2 ${connected ? "" : "animate-pulse"}`}
-            >
+            <span className="relative flex size-2">
               <span
                 className={`absolute inline-flex size-full rounded-full ${
-                  connected ? "bg-success" : "bg-muted-foreground"
+                  connected ? "bg-success" : "bg-muted-foreground animate-pulse"
                 }`}
               />
             </span>
@@ -98,65 +99,62 @@ function Index() {
 
         <section className="rounded-3xl border border-border bg-card p-8 shadow-lg">
           <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">
-            <ArrowDownToLine className="size-3.5" />
-            Latest received IP
+            <Users className="size-3.5" />
+            Unique IPs
           </div>
-
-          {record ? (
-            <>
-              <p className="mt-4 font-mono text-4xl font-semibold break-all text-foreground sm:text-5xl">
-                {record.ip}
-              </p>
-              <div className="mt-6 flex flex-wrap items-center gap-2">
-                <span
-                  className={`rounded-full border px-3 py-1 text-xs font-semibold ${
-                    record.version === "IPv4"
-                      ? "border-primary/40 bg-primary/10 text-primary"
-                      : "border-accent-foreground/20 bg-secondary text-secondary-foreground"
-                  }`}
-                >
-                  {record.version}
-                </span>
-                <span className="rounded-full border border-border bg-secondary px-3 py-1 text-xs text-secondary-foreground">
-                  Received {formatTime(record.receivedAt)}
-                </span>
-              </div>
-            </>
-          ) : (
-            <div className="mt-4 flex items-center gap-4">
-              <p className="font-mono text-4xl font-semibold text-muted-foreground/40 sm:text-5xl">
-                — . — . — . —
-              </p>
-            </div>
-          )}
+          <p className="mt-2 font-mono text-5xl font-semibold text-foreground">
+            {records.length}
+          </p>
         </section>
 
-        {record ? (
-          <section className="grid grid-cols-2 gap-4">
-            <div className="rounded-2xl border border-border bg-card p-5">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Activity className="size-3.5" />
-                Requests
-              </div>
-              <p className="mt-2 font-mono text-3xl font-semibold text-foreground">
-                {record.count}
-              </p>
+        {records.length > 0 ? (
+          <section className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-widest text-muted-foreground">
+              <ArrowDownToLine className="size-3.5" />
+              Records — newest first
             </div>
-            <div className="rounded-2xl border border-border bg-card p-5">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Activity className="size-3.5" />
-                Last received
-              </div>
-              <p className="mt-2 font-mono text-3xl font-semibold text-foreground">
-                {secondsAgo(record.receivedAt, now)}
-              </p>
-            </div>
+            {records.map((r, i) => (
+              <article
+                key={r.ip}
+                className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card px-5 py-4"
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="w-6 shrink-0 font-mono text-xs text-muted-foreground">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <p className="truncate font-mono text-lg font-semibold text-foreground">
+                    {r.ip}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span
+                    className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                      r.version === "IPv4"
+                        ? "border-primary/40 bg-primary/10 text-primary"
+                        : "border-border bg-secondary text-secondary-foreground"
+                    }`}
+                  >
+                    {r.version}
+                  </span>
+                  <span className="hidden rounded-full border border-border bg-secondary px-3 py-1 text-xs text-secondary-foreground sm:inline">
+                    {formatTime(r.firstSeen)}
+                  </span>
+                </div>
+              </article>
+            ))}
           </section>
         ) : (
           <p className="rounded-2xl border border-dashed border-border bg-card/50 px-5 py-6 text-center text-sm text-muted-foreground">
             No data received yet. Send a POST request to{" "}
             <span className="font-mono text-foreground">/api/public/ip</span> from your
             Roblox script — this page updates automatically.
+          </p>
+        )}
+
+        {latest && (
+          <p className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <Activity className="size-3.5" />
+            Last unique IP received {secondsAgo(latest.firstSeen, now)}
           </p>
         )}
       </main>

@@ -80,7 +80,8 @@ export const Route = createFileRoute("/api/public/ip")({
 
         // Deduplication happens here on the endpoint: an existing IP keeps
         // its original record untouched.
-        if (!store.has(ip)) {
+        const duplicate = store.has(ip);
+        if (!duplicate) {
           store.set(ip, {
             ip,
             version: detectVersion(ip),
@@ -88,7 +89,10 @@ export const Route = createFileRoute("/api/public/ip")({
           });
         }
 
-        return Response.json({ ok: true, duplicate: store.size > 0 && !store.get(ip) }, { headers: CORS_HEADERS });
+        return Response.json(
+          { ok: true, duplicate, total: store.size },
+          { headers: CORS_HEADERS },
+        );
       },
     },
   },
