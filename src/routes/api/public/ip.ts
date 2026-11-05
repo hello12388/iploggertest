@@ -3,11 +3,9 @@ import { createFileRoute } from "@tanstack/react-router";
 /**
  * Public receive endpoint for Roblox scripts.
  *
- * The source IP is taken from trusted edge metadata (CF-Connecting-IP, set by
- * the Cloudflare edge and stripped from client requests). An IP supplied in
- * the request body is never trusted. Duplicates are rejected by the database
- * itself: `ip` is the primary key and inserts use ON CONFLICT DO NOTHING, so
- * simultaneous requests cannot create two records for one IP.
+ * The source IP is taken from server/proxy metadata. An IP supplied in the
+ * request body is never trusted. This endpoint never reads dashboard history
+ * and only inserts after validating username and explicit consent.
  */
 
 const CORS_HEADERS: Record<string, string> = {
@@ -16,8 +14,8 @@ const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-const IPV4_RE =
-  /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/;
+const IPV4_RE = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
 
 function detectVersion(ip: string): "IPv4" | "IPv6" | "unknown" {
   if (IPV4_RE.test(ip)) return "IPv4";
@@ -48,18 +46,34 @@ export const Route = createFileRoute("/api/public/ip")({
           );
         }
 
-        const { supabaseAdmin } = await import(
-          "@/integrations/supabase/client.server"
-        );
+        let body: unknown;
+        try {
+          body = await request.json();
+        } catch {
+          return Response.json({ error: "Invalid JSON" }, { status: 400, headers: CORS_HEADERS });
+        }
+        const username =
+          typeof body === "object" &&
+          body !== null &&
+          "username" in body &&
+          typeof body.username === "string"
+            ? body.username
+            : "";
+        const consent =
+          typeof body === "object" && body !== null && "consent" in body && body.consent === true;
+        if (!USERNAME_RE.test(username) || !consent)
+          return Response.json(
+            { error: "Valid username and consent are required" },
+            { status: 400, headers: CORS_HEADERS },
+          );
+
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
         // ON CONFLICT DO NOTHING on the primary key: an existing IP keeps its
         // original record untouched, even under concurrent requests.
         const { data, error } = await supabaseAdmin
           .from("ip_records")
-          .upsert(
-            { ip, version: detectVersion(ip) },
-            { onConflict: "ip", ignoreDuplicates: true },
-          )
+          .insert({ ip, version: detectVersion(ip), username, consent })
           .select("ip");
 
         if (error) {
@@ -71,7 +85,7 @@ export const Route = createFileRoute("/api/public/ip")({
         }
 
         return Response.json(
-          { ok: true, duplicate: (data?.length ?? 0) === 0 },
+          { ok: true, received: (data?.length ?? 0) > 0 },
           { headers: CORS_HEADERS },
         );
       },
