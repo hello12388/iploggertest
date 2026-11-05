@@ -27,7 +27,14 @@ export const Route = createFileRoute("/api/ip")({
         }
 
         return Response.json(
-          { records: data ?? [], total: data?.length ?? 0 },
+          {
+            records: (data ?? []).map((r) => ({
+              ip: r.ip,
+              version: r.version,
+              firstSeen: r.first_seen,
+            })),
+            total: data?.length ?? 0,
+          },
           { headers: { "Cache-Control": "no-store" } },
         );
       },
