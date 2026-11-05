@@ -11,6 +11,9 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiIpRouteImport } from './routes/api/ip'
+import { Route as ApiLoginRouteImport } from './routes/api/login'
+import { Route as ApiLogoutRouteImport } from './routes/api/logout'
+import { Route as ApiSessionRouteImport } from './routes/api/session'
 import { Route as ApiPublicIpRouteImport } from './routes/api/public/ip'
 
 const IndexRoute = IndexRouteImport.update({
@@ -23,6 +26,21 @@ const ApiIpRoute = ApiIpRouteImport.update({
   path: '/api/ip',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiLoginRoute = ApiLoginRouteImport.update({
+  id: '/api/login',
+  path: '/api/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLogoutRoute = ApiLogoutRouteImport.update({
+  id: '/api/logout',
+  path: '/api/logout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSessionRoute = ApiSessionRouteImport.update({
+  id: '/api/session',
+  path: '/api/session',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicIpRoute = ApiPublicIpRouteImport.update({
   id: '/api/public/ip',
   path: '/api/public/ip',
@@ -32,30 +50,42 @@ const ApiPublicIpRoute = ApiPublicIpRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/ip': typeof ApiIpRoute
+  '/api/login': typeof ApiLoginRoute
+  '/api/logout': typeof ApiLogoutRoute
+  '/api/session': typeof ApiSessionRoute
   '/api/public/ip': typeof ApiPublicIpRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/ip': typeof ApiIpRoute
+  '/api/login': typeof ApiLoginRoute
+  '/api/logout': typeof ApiLogoutRoute
+  '/api/session': typeof ApiSessionRoute
   '/api/public/ip': typeof ApiPublicIpRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/ip': typeof ApiIpRoute
+  '/api/login': typeof ApiLoginRoute
+  '/api/logout': typeof ApiLogoutRoute
+  '/api/session': typeof ApiSessionRoute
   '/api/public/ip': typeof ApiPublicIpRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/ip' | '/api/public/ip'
+  fullPaths: '/' | '/api/ip' | '/api/login' | '/api/logout' | '/api/session' | '/api/public/ip'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/ip' | '/api/public/ip'
-  id: '__root__' | '/' | '/api/ip' | '/api/public/ip'
+  to: '/' | '/api/ip' | '/api/login' | '/api/logout' | '/api/session' | '/api/public/ip'
+  id: '__root__' | '/' | '/api/ip' | '/api/login' | '/api/logout' | '/api/session' | '/api/public/ip'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiIpRoute: typeof ApiIpRoute
+  ApiLoginRoute: typeof ApiLoginRoute
+  ApiLogoutRoute: typeof ApiLogoutRoute
+  ApiSessionRoute: typeof ApiSessionRoute
   ApiPublicIpRoute: typeof ApiPublicIpRoute
 }
 
@@ -75,6 +105,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiIpRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/login': {
+      id: '/api/login'
+      path: '/api/login'
+      fullPath: '/api/login'
+      preLoaderRoute: typeof ApiLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/logout': {
+      id: '/api/logout'
+      path: '/api/logout'
+      fullPath: '/api/logout'
+      preLoaderRoute: typeof ApiLogoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/session': {
+      id: '/api/session'
+      path: '/api/session'
+      fullPath: '/api/session'
+      preLoaderRoute: typeof ApiSessionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/ip': {
       id: '/api/public/ip'
       path: '/api/public/ip'
@@ -88,6 +139,9 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiIpRoute: ApiIpRoute,
+  ApiLoginRoute: ApiLoginRoute,
+  ApiLogoutRoute: ApiLogoutRoute,
+  ApiSessionRoute: ApiSessionRoute,
   ApiPublicIpRoute: ApiPublicIpRoute,
 }
 export const routeTree = rootRouteImport

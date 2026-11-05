@@ -1,17 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-/**
- * Dashboard-only read endpoint. Deliberately NOT under /api/public/: the
- * records live in a table with row-level security and no public policies, so
- * only this server-side handler (service role) can read them.
- */
+import { readSessionFromRequest } from "@/lib/dashboard-auth";
+
 export const Route = createFileRoute("/api/ip")({
   server: {
     handlers: {
-      GET: async () => {
-        const { supabaseAdmin } = await import(
-          "@/integrations/supabase/client.server"
-        );
+      GET: async ({ request }) => {
+        const session = readSessionFromRequest(request);
+        if (!session || session.expiresAt <= Date.now()) {
+          return Response.json(
+            { error: "Unauthorized" },
+            { status: 401 },
+          );
+        }
+
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
         const { data, error } = await supabaseAdmin
           .from("ip_records")
