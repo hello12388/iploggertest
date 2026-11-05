@@ -56,8 +56,10 @@ export const Route = createFileRoute("/api/public/ip")({
         // original record untouched, even under concurrent requests.
         const { data, error } = await supabaseAdmin
           .from("ip_records")
-          .insert({ ip, version: detectVersion(ip) })
-          .ignoreDuplicates()
+          .upsert(
+            { ip, version: detectVersion(ip) },
+            { onConflict: "ip", ignoreDuplicates: true },
+          )
           .select("ip");
 
         if (error) {
